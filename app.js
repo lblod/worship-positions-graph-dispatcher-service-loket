@@ -1,5 +1,14 @@
 import bodyParser from 'body-parser';
 import { app } from 'mu';
+import { BASES as b } from './env';
+import { v4 as uuid } from 'uuid';
+import { NAMESPACES as ns } from './env';
+import * as mas from '@lblod/mu-auth-sudo';
+import * as rst from 'rdf-string-ttl';
+import * as env from './env';
+import * as del from './deltaProcessing';
+import * as N3 from 'n3';
+const { namedNode, literal } = N3.DataFactory;
 
 app.use(
   bodyParser.json({
@@ -15,6 +24,101 @@ app.get('/', function (req, res) {
   res.send('Hello from worship-positions-graph-dispatcher-service-loket');
 });
 
-app.post("/delta", async function (req, res) {
-  
+app.post('/delta', async function (req, res, next) {
+  // We can already send a 200 back. The delta-notifier does not care about the
+  // result, as long as the request is closed.
+  res.status(200).end();
+  try {
+    const changesets = req.body;
+    const result = await del.processDeltaChangesets(changesets);
+    handleProcessingResult(result);
+  } catch (err) {
+    next(err);
+  }
 });
+
+///////////////////////////////////////////////////////////////////////////////
+// Error handler
+///////////////////////////////////////////////////////////////////////////////
+
+// For some reason the 'next' parameter is unused and eslint notifies us, but
+// when removed, Express does not use this middleware anymore.
+/* eslint-disable no-unused-vars */
+app.use(async (err, req, res, next) => {
+  //TODO remove next line in production
+  console.error(err);
+  if (env.LOGLEVEL === 'error') console.error(err);
+  if (env.WRITE_ERRORS === true) {
+    const errorStore = errorToStore(err);
+    await writeError(errorStore);
+  }
+});
+/* eslint-enable no-unused-vars */
+
+///////////////////////////////////////////////////////////////////////////////
+// Helpers
+///////////////////////////////////////////////////////////////////////////////
+
+/*
+ * Produces an RDF store with the data to encode an error in the OSLC
+ * namespace.
+ *
+ * @function
+ * @param {Error} errorObject - Instance of the standard JavaScript Error class
+ * or similar object that has a `message` property.
+ * @returns {N3.Store} A new Store with the properties to represent the error.
+ */
+function errorToStore(errorObject) {
+  const store = new N3.Store();
+  const errorUuid = uuid();
+  const error = b.error(errorUuid);
+  store.addQuad(error, ns.rdf`type`, ns.oslc`Error`);
+  store.addQuad(error, ns.mu`uuid`, literal(errorUuid));
+  store.addQuad(error, ns.oslc`message`, literal(errorObject.message));
+  return store;
+}
+
+/*
+ * Receives a store with only the triples related to error messages and stores
+ * them in the triplestore.
+ *
+ * @async
+ * @function
+ * @param {N3.Store} errorStore - Store with only error triples. (All of the
+ * contents are stored.)
+ * @returns {undefined} Nothing
+ */
+async function writeError(errorStore) {
+  const writer = new N3.Writer();
+  errorStore.forEach((q) => writer.addQuad(q));
+  const errorTriples = await new Promise((resolve, reject) => {
+    writer.end((err, res) => {
+      if (err) reject(err);
+      resolve(res);
+    });
+  });
+  await mas.updateSudo(`
+    INSERT DATA {
+      GRAPH ${rst.termToString(namedNode(env.ERROR_GRAPH))} {
+        ${errorTriples}
+      }
+    }
+  `);
+}
+
+/*
+ * The pocessing of delta messages should return an object with a potential
+ * information message. This function prints the message when the loglevel
+ * requests for that.
+ *
+ * @function
+ * @param {Object} result - A JavaScript object with keys `success` (Boolean)
+ * and `reason` (String). When not successful, the reason is printed according
+ * to the loglevel.
+ * @returns {undefined} Nothing
+ */
+function handleProcessingResult(result) {
+  if (result.success) return;
+  if (env.LOGLEVEL == 'error' || env.LOGLEVEL == 'info')
+    console.log(result.reason);
+}
