@@ -37,9 +37,10 @@ async function processInserts(inserts) {
   //    Leave data alone, do nothing else
   //  Found:
   //    Move data per subject from temp-insert to the org graph
-  //    Schedule one-time:
+  //    Schedule:
   //      Get all subjects from temp-insert and their type and try those queries again
   //      Move data per subject
+  //      Reschedule if something done
   for (const individual of subjectsWithTypes) {
     const { subject, type } = individual;
     const organisationUUIDs = await getOrganisationUUIDs(subject, type);
@@ -59,13 +60,47 @@ async function processInserts(inserts) {
   }
 }
 
-async function processDeletes(changesets) {
+//Delete triples from temp-insert. (This is a bit of a guess, we assume
+//triples are unique accross the whole database. We have to do this because
+//we can't link every deleted triple on its own to an organisation.)
+//Remove delete triples from the temp-delete, that graph should be empty if
+//there are not problematic triples.
+async function processDeletes(deletes) {
   //Convert to store
-  //Filter on graph
-  //Something from the correct temp-delete graph?
-  //Delete triple from temp-insert (this is a bit of a guess, we assume triples are unique accross the whole database, and when inserted, always belong to an organisation)
-  //Query existence of triples and their graph, if not public but org graph, remove from that graph. If multiple graphs → ERROR(?), if no graphs → nothing to do.
-  //Remove delete triples from the temp-delete, that graph should be empty
+  const store = new N3.Store();
+  deletes.forEach((triple) => {
+    //Filter for the inserts or deletes graph used for ingesting
+    if (env.TEMP_GRAPH_DELETES === triple.graph.value)
+      store.addQuad(pbu.parseSparqlJsonBindingQuad(triple));
+  });
+
+  //Nothing in the store, nothing to do.
+  //TODO potentially throw error stating that there is nothing to process?
+  if (store.size < 1) return;
+
+  //Query for every triple all the graphs it exists in
+  const storeWithAllGraphs = await getGraphsForTriples(store);
+  const problematicTriples = [];
+  for (const triple of store) {
+    const graphs = storeWithAllGraphs
+      .getGraphs(triple.subject, triple.predicate, triple.object)
+      .filter((g) => g.value !== env.TEMP_GRAPH_DELETES)
+      .filter((g) => g.value !== env.TEMP_GRAPH_INSERTS)
+      .filter((g) => g.value.includes(env.ORGANISATION_GRAPH_PREFIX));
+    if (graphs.length > 1) {
+      //Triple found in more than 1 organisation graph. Mark this triple as
+      //problematic so that it won't be removed
+      problematicTriples.push(triple);
+    }
+    //else: This is good: the triple only exists in one graph and because of
+    //the similar URI, it must be the correct organisation graph. This triple
+    //can be removed from all the graphs previously found.
+  }
+  problematicTriples.forEach((t) => {
+    storeWithAllGraphs.removeQuad(t.subject, t.predicate, t.object);
+  });
+
+  await deleteData(storeWithAllGraphs);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -91,6 +126,33 @@ async function getInsertSubjectsWithType() {
   //Execute query asking for all unique subjects in the temp-insert graph and their type (from anywhere in the triplestore)
   //Return store with only triples { <something> rdf:type <type> }
   //TODO
+}
+
+async function getGraphsForTriples(store) {
+  const values = [];
+  store.forEach((triple) => {
+    values.push(
+      `(${rst.termToString(triple.subject)} ${rst.termToString(
+        triple.predicate
+      )} ${rst.termToString(triple.object)})`
+    );
+  });
+  const response = await mas.querySudo(`
+    SELECT ?s ?p ?o ?g WHERE {
+      VALUES (?s ?p ?o) {
+        ${values.join('\n')}
+      }
+      GRAPH ?g {
+        ?s ?p ?o .
+      }
+    }`);
+  const parser = new sjp.SparqlJsonParser();
+  const parsedResults = parser.parseJsonResults(response);
+  const resultStore = new N3.Store();
+  parsedResults.forEach((res) => {
+    resultStore.addQuad(res.s, res.p, res.o, res.g);
+  });
+  return resultStore;
 }
 
 async function getOrganisationUUIDs(subject, type) {
@@ -199,11 +261,15 @@ async function getDataForSubject(subject, graph) {
 //**always** adds the type to a literal, even for strings where that would be
 //redundant.
 function formatTriple(quad) {
-  if (quad.object?.datatype?.value === 'http://www.w3.org/2001/XMLSchema#string') {
-    return `${rst.termToString(quad.subject)} ${rst.termToString(quad.predicate)} ${rst.termToString(quad.object)}^^${rst.termToString(quad.object.datatype)} .`;
-  } else {
-    return `${rst.termToString(quad.subject)} ${rst.termToString(quad.predicate)} ${rst.termToString(quad.object)} .`;
-  }
+  return `${rst.termToString(quad.subject)} ${rst.termToString(
+    quad.predicate
+  )} ${formatTerm(quad.object)} .`;
+}
+
+function formatTerm(term) {
+  if (term.datatype?.value === 'http://www.w3.org/2001/XMLSchema#string')
+    return `${rst.termToString(term)}^^${rst.termToString(term.datatype)}`;
+  else return rst.termToString(term);
 }
 
 //Generic
