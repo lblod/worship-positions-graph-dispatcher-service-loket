@@ -7,6 +7,22 @@ import * as N3 from 'n3';
 const { namedNode } = N3.DataFactory;
 import pta from './config/pathsToAdministrativeUnit';
 
+/**
+ * Main entry function for processing deltas. Stores inserts in the correct
+ * organisation graph (configurable via query paths) and performs deletes in
+ * the temporary data and the organisation graph. It processes deletions of
+ * data before insertions of data per changeset in the order they appear.
+ *
+ * @public
+ * @async
+ * @function
+ * @param {Iterable} changesets - This is an iterable collection of changesets
+ * from the delta-notifier, usually an Array with objects like `{ inserts:
+ * [...], deletes: [...] }`
+ * @returns {undefined} Nothing
+ * @throws Will throw an exception if any error has occured (network, SPARQL,
+ * timeout, ...)
+ */
 export async function processDeltaChangesets(changesets) {
   for (const changeset of changesets) {
     await processDeletes(changeset.deletes);
@@ -14,6 +30,21 @@ export async function processDeltaChangesets(changesets) {
   }
 }
 
+/**
+ * Takes a collection of inserts and processes them. They are inserted in the
+ * graph for the correct organisation and removed from the temporary insert
+ * graph. The organisation graph is found by querying configurable paths (see
+ * the `config/pathsToAdministrativeUnit.js` file).
+ *
+ * @async
+ * @function
+ * @param {Iterable} inserts - An iterable with triples formatted in JSON
+ * syntax, e.g. `{ subject: {...}, predicate: {...}, object: {...}, graph:
+ * {...} }`. These are usually the contents of changesets from the
+ * delta-notifier.
+ * @returns {undefined} Nothing
+ * @throws Will throw an exception on any kind of error.
+ */
 async function processInserts(inserts) {
   //Convert to store
   const store = new N3.Store();
@@ -32,26 +63,19 @@ async function processInserts(inserts) {
   const subjects = store.getSubjects();
   const subjectsWithTypes = await getTypesForSubjects(subjects);
 
-  //Use that to find bestuurseenheid with type specific queries, loop per subject
-  //  Not-found:
-  //    Leave data alone, do nothing else
-  //  Found:
-  //    Move data per subject from temp-insert to the org graph
-  //    Schedule:
-  //      Get all subjects from temp-insert and their type and try those queries again
-  //      Move data per subject
-  //      Reschedule if something done
   for (const individual of subjectsWithTypes) {
     const { subject, type } = individual;
     const organisationUUIDs = await getOrganisationUUIDs(subject, type);
     if (organisationUUIDs.length > 1) {
-      //TODO? throw error or something to indicate that there might be a problem?
+      //TODO? throw error or something to indicate that there might be a
+      //problem?
     } else if (organisationUUIDs.length === 1) {
       const organisationGraph = namedNode(
         `${env.ORGANISATION_GRAPH_PREFIX}${organisationUUIDs[0]}`
       );
       const insertGraph = namedNode(env.TEMP_GRAPH_INSERTS);
-      //Execute move query for all data of that `subject` to graph constructed from the UUID
+      //Execute move query for all data of that `subject` to graph constructed
+      //from the UUID
       await moveSubjectBetweenGraphs(subject, insertGraph, organisationGraph);
       //TODO Schedule
     }
@@ -60,11 +84,28 @@ async function processInserts(inserts) {
   }
 }
 
-//Delete triples from temp-insert. (This is a bit of a guess, we assume
-//triples are unique accross the whole database. We have to do this because
-//we can't link every deleted triple on its own to an organisation.)
-//Remove delete triples from the temp-delete, that graph should be empty if
-//there are not problematic triples.
+/**
+ * Takes a collection of deletes and processes them. If a triple appears in
+ * **one** graph that looks like an organisation graph, it is deleted from
+ * there. They are also deleted from the temporary inserts and deletes graph.
+ * If the triple appears in more than one organisation graph, it has to be left
+ * alone an nothing is deleted.
+ *
+ * Deletes triples from temporary inserts. (This is a bit of a guess, we assume
+ * triples are unique accross the whole database. We have to do this because we
+ * can't link every deleted triple on its own to an organisation.) Also removes
+ * delete triples from the temporary deletes, that graph should be empty if
+ * there are no problematic triples.
+ *
+ * @async
+ * @function
+ * @param {Iterable} inserts - An iterable with triples formatted in JSON
+ * syntax, e.g. `{ subject: {...}, predicate: {...}, object: {...}, graph:
+ * {...} }`. These are usually the contents of changesets from the
+ * delta-notifier.
+ * @returns {undefined} Nothing
+ * @throws Will throw an exception on any kind of error.
+ */
 async function processDeletes(deletes) {
   //Convert to store
   const store = new N3.Store();
@@ -107,6 +148,15 @@ async function processDeletes(deletes) {
 // Helpers
 ///////////////////////////////////////////////////////////////////////////////
 
+/**
+ * Queries the triplestore to fetch the type of every given subject.
+ *
+ * @async
+ * @function
+ * @param {Iterable} subjects - A collection of subject.
+ * @returns {Array(Object(subject: NamedNode, type: NamedNode))}  An array of
+ * JavaScript objects with the subject and type as RDF.JS NamedNode terms.
+ */
 async function getTypesForSubjects(subjects) {
   const response = await mas.querySudo(`
     ${env.SPARQL_PREFIXES}
@@ -121,13 +171,35 @@ async function getTypesForSubjects(subjects) {
   return parsedResults;
 }
 
-//Get data from the triplestore
+/**
+ * TODO
+ * Get data from the triplestore
+ *
+ * @async
+ * @function
+ * TODO
+ * @param {}
+ */
 async function getInsertSubjectsWithType() {
-  //Execute query asking for all unique subjects in the temp-insert graph and their type (from anywhere in the triplestore)
+  //Execute query asking for all unique subjects in the temp-insert graph and
+  //their type (from anywhere in the triplestore)
   //Return store with only triples { <something> rdf:type <type> }
   //TODO
 }
 
+/**
+ * Get, for each triple in the given store, all the graphs this triple can be
+ * found in. E.g. a triple to be deleted can be found in the temporary deletes
+ * graph and in a certain organisation graph. Find all of the occurences of
+ * this triple and return it as a single data store.
+ *
+ * @async
+ * @function
+ * @param {N3.Store} store - Store containing the triples that need to be
+ * searched for. The graphs are ignored.
+ * @returns {N3.Store} Store with the same triple repeated with a different
+ * graph for every graph it can be found in.
+ */
 async function getGraphsForTriples(store) {
   const values = [];
   store.forEach((triple) => {
@@ -155,6 +227,22 @@ async function getGraphsForTriples(store) {
   return resultStore;
 }
 
+/**
+ * For a given subject of a given type, finds the query that should form a path
+ * to the administrative unit that should be the container of that data. Query
+ * the triplestore to get the UUID of that administrative unit and return all
+ * results if they can be found. Multiple paths could be found, and thus,
+ * technically, multiple unique UUIDs could be returned.
+ *
+ * @async
+ * @function
+ * @param {NamedNode} subject - A given subject that needs to be resolved to an
+ * administrative unit.
+ * @param {NamedNode} type - The type matching the subject, used for searching
+ * for the correct path to the administrative unit.
+ * @returns {Array(Literal)} An array with literals containing the unique UUIDs
+ * of the administrative units.
+ */
 async function getOrganisationUUIDs(subject, type) {
   //Find correct query from a config with `type`
   let organisationUUIDs = new Set();
@@ -177,34 +265,65 @@ async function getOrganisationUUIDs(subject, type) {
   return [...organisationUUIDs];
 }
 
-//This method should work, but due to a bug in Virtuoso, the queries produced
-//by mu-auth don't work properly, leaving data in the originalGraph. This is
-//solved by first retreiving all the data and executing individual queries per
-//triple if the object is a typed literal. :O (I know this is bad)
-//
-//async function moveSubjectBetweenGraphs(subject, originalGraph, targetGraph) {
-//  await mas.updateSudo(`
-//    ${env.SPARQL_PREFIXES}
-//    DELETE {
-//      GRAPH ${rst.termToString(originalGraph)} {
-//        ?s ?p ?o .
-//      }
-//    }
-//    INSERT {
-//      GRAPH ${rst.termToString(targetGraph)} {
-//        ?s ?p ?o .
-//      }
-//    }
-//    WHERE {
-//      GRAPH ${rst.termToString(originalGraph)} {
-//        ?s ?p ?o .
-//        VALUES ?s {
-//          ${rst.termToString(subject)}
-//        }
-//      }
-//    }`);
-//}
+/**
+ * Moves all triples for a given subject from the given original graph to the
+ * target graph. Done via a simple `DELETE ... INSERT ...` query.
+ *
+ * NOTE: This method should work, but due to a bug in Virtuoso, the queries
+ * produced by mu-auth don't work properly, leaving data in the originalGraph.
+ * This is solved by first retreiving all the data and executing individual
+ * queries per triple if the object is a typed literal. :O (I know this is bad)
+ * This function is disabled for now and the coming functions are the
+ * workaround.
+ *
+ * @async
+ * @function
+ * @param {NamedNode} subject - The subject all data needs to be moved from.
+ * @param {NamedNode} originalGraph - Graph where data will be searched in and
+ * removed.
+ * @param {NamedNode} targetGraph - Graph where the data will end up in.
+ * @return {undefined} Nothing
+ */
+/*
+async function moveSubjectBetweenGraphs(subject, originalGraph, targetGraph) {
+  await mas.updateSudo(`
+    ${env.SPARQL_PREFIXES}
+    DELETE {
+      GRAPH ${rst.termToString(originalGraph)} {
+        ?s ?p ?o .
+      }
+    }
+    INSERT {
+      GRAPH ${rst.termToString(targetGraph)} {
+        ?s ?p ?o .
+      }
+    }
+    WHERE {
+      GRAPH ${rst.termToString(originalGraph)} {
+        ?s ?p ?o .
+        VALUES ?s {
+          ${rst.termToString(subject)}
+        }
+      }
+    }`);
+}
+*/
 
+/**
+ * Moves all triples for a given subject from the given original graph to the
+ * target graph. Done via a workaround that involves first getting all the data
+ * for the subject, formatting the data with explicit datatypes (as another
+ * workaround for weirdly explicit delta data and Virtuoso's specific datatype
+ * handling), and removing data triple by triple in separate queries.
+ *
+ * @async
+ * @function
+ * @param {NamedNode} subject - The subject all data needs to be moved from.
+ * @param {NamedNode} originalGraph - Graph where data will be searched in and
+ * removed.
+ * @param {NamedNode} targetGraph - Graph where the data will end up in.
+ * @return {undefined} Nothing
+ */
 async function moveSubjectBetweenGraphs(subject, originalGraph, targetGraph) {
   //Get all data for this subject
   const data = await getDataForSubject(subject, originalGraph);
@@ -226,8 +345,19 @@ async function moveSubjectBetweenGraphs(subject, originalGraph, targetGraph) {
   }
 }
 
-//Generic
-//graph optional
+/**
+ * Query the triplestore to fetch all the data for a given subject.
+ *
+ * @async
+ * @function
+ * @param {NamedNode} subject - Use this as the subject to fetch all data in
+ * the triplestore.
+ * @param {NamedNode} [graph] - Optional. If given, the query is limited to
+ * only search through this graph. If not given the query is still executed
+ * with a GRAPH clause so that the returned result store has the correct graph
+ * values.
+ * @returns {N3.Store} A store containing all the data.
+ */
 async function getDataForSubject(subject, graph) {
   const allDataResponse = graph
     ? await mas.querySudo(`
@@ -251,30 +381,61 @@ async function getDataForSubject(subject, graph) {
   return store;
 }
 
-//**Please don't use this unless absolutely necessary.**
-//This should produce the same results as a TTL writer, but literals with
-//datatype xsd:string in the term in the store, also explicitly have the
-//^^xsd:string in the TTL. Regular writer see this as redundant information and
-//don't print the ^^xsd:string, however, due to the weird behaviour of
-//Virtuoso, we need the type if we want to remove a typed literal from the
-//triplestore, including for strings. This is also because the delta-consumer
-//**always** adds the type to a literal, even for strings where that would be
-//redundant.
+/**
+ * Formats a quad in a Turtle/Notation3-like syntax for use in QPARQL queries.
+ * The graph in the quad is ignored.
+ *
+ * **Please don't use this unless absolutely necessary.**
+ * This should produce the same results as a TTL writer, but literals with
+ * datatype `xsd:string` in the term in the store, also explicitly have the
+ * `^^xsd:string` in the TTL. Regular writers see this as redundant information
+ * and don't print the `^^xsd:string`, however, due to the weird(?) behaviour
+ * of Virtuoso, we need the type if we want to remove a typed literal from the
+ * triplestore, including for strings. This is also because the delta-consumer
+ * **always** adds the type to a literal, even for strings where that would be
+ * redundant.
+ *
+ * @function
+ * @param {Quad} quad - Quad to be formatted into a Turtle/Notation3 compatible
+ * string.
+ * @returns {String} String representation of the quad.
+ */
 function formatTriple(quad) {
   return `${rst.termToString(quad.subject)} ${rst.termToString(
     quad.predicate
   )} ${formatTerm(quad.object)} .`;
 }
 
+/**
+ * Formats an RDF term into a Turtle/Notation3 compatible string.
+ *
+ * **NOTE:** special about this function is that it explicitely adds the
+ * `^^xsd:string` datatype annotation if it is present in the term to be
+ * compatible with Virtuoso in DELETE queries. Prefer regular RDF writer for
+ * more comprehensive writing of triples and terms.
+ *
+ * @function
+ * @param {NamedNode} term -
+ * @returns {String}
+ */
 function formatTerm(term) {
   if (term.datatype?.value === 'http://www.w3.org/2001/XMLSchema#string')
     return `${rst.termToString(term)}^^${rst.termToString(term.datatype)}`;
   else return rst.termToString(term);
 }
 
-//Generic
-//insert in graph from the triple in the store
-//graph optional: ignores the embedded graph and inserts in this one
+/**
+ * Inserts the data from a store into the graphs defined in the data or in the
+ * given graph.
+ *
+ * @async
+ * @function
+ * @param {N3.Store} store - Store of data to be inserted in the triplestore.
+ * @param {NamedNode} [graph] - Optional. If given ignore the graph information
+ * in the quads and insert the triple in this graph. Otherwise, use the
+ * internal graph information to put the triples in.
+ * @returns {undefined} Nothing
+ */
 async function insertData(store, graph) {
   const insertFunction = async (store, graph) => {
     const writer = new N3.Writer();
@@ -302,9 +463,19 @@ async function insertData(store, graph) {
     }
 }
 
-//Generic
-//delete in graph from the triple in the store
-//graph optional: ignores the embedded graph and inserts in this one
+/**
+ * Deletes given data from the triplestore. Deletes from the given graph only
+ * or deletes from the graph embedded in the quad. Due to a bug in Virtuoso,
+ * this function deletes typed literals one by one in separate queries as a
+ * workaround.
+ *
+ * @async
+ * @function
+ * @param {N3.Store} store - Store with data that needs to be deleted.
+ * @param {NamedNode} [graph] - Optional. If given, only remove data from that
+ * graph, other wise use graph embedded in the quad.
+ * @returns {undefined} Nothing
+ */
 async function deleteData(store, graph) {
   const deleteFunction = async (store, graph) => {
     //const writer = new N3.Writer();
