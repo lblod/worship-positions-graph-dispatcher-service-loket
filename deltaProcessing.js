@@ -68,6 +68,16 @@ async function processInserts(inserts) {
 }
 
 /**
+ * Holds a timer for scanning and processing the inserts. This is executed
+ * every time a processing has succesfully dispatched at least one subject to
+ * try and see if another subject can be moved.
+ * @see scanAndProcessInserts
+ *
+ * @global
+ */
+let scanAndProcessTimer;
+
+/**
  * @see processInserts
  * This is the second half of that function. It starts from a store containing
  * at least one subject and its type to find the organisation graph and move
@@ -81,6 +91,7 @@ async function processInserts(inserts) {
  * @throws Will throw an exception on any kind of error.
  */
 async function dispatch(subjectsWithTypes) {
+  let needsToSchedule = false;
   for (const individual of subjectsWithTypes) {
     const { subject, type } = individual;
     const organisationUUIDs = await getOrganisationUUIDs(subject, type);
@@ -95,10 +106,18 @@ async function dispatch(subjectsWithTypes) {
       //Execute move query for all data of that `subject` to graph constructed
       //from the UUID
       await moveSubjectBetweenGraphs(subject, insertGraph, organisationGraph);
-      //TODO Schedule
+      //Schedule a new iteration of insert processing
+      needsToSchedule = true;
     }
     //else: do nothing (TODO potential error message, to indicate nothing could
     //be done, but this is actually a rather normal occurence)
+  }
+  if (needsToSchedule) {
+    if (scanAndProcessTimer) {
+      clearTimeout(scanAndProcessTimer);
+      scanAndProcessTimer = undefined;
+    }
+    scanAndProcessTimer = setTimeout(scanAndProcessInserts, 5000);
   }
 }
 
@@ -249,19 +268,28 @@ async function getTypesForSubjects(subjects) {
 }
 
 /**
- * TODO
- * Get data from the triplestore
+ * Execute query fetching all unique subjects in the temporary insert graph and
+ * their type (from anywhere in the triplestore).
  *
+ * @see getTypesForSubjects
  * @async
  * @function
- * TODO
- * @param {}
+ * @returns {Array(Object(subject: NamedNode, type: NamedNode))} An array of
+ * JavaScript objects with the subject and type as RDF.JS NamedNode terms.
  */
 async function getInsertSubjectsWithType() {
-  //Execute query asking for all unique subjects in the temp-insert graph and
-  //their type (from anywhere in the triplestore)
-  //Return store with only triples { <something> rdf:type <type> }
-  //TODO
+  const response = await mas.querySudo(`
+    ${env.SPARQL_PREFIXES}
+    SELECT DISTINCT ?subject ?type WHERE {
+      GRAPH ${rst.termToString(namedNode(env.TEMP_GRAPH_INSERTS))} {
+        ?subject ?p ?o .
+      }
+      ?subject rdf:type ?type .
+    }`);
+
+  const parser = new sjp.SparqlJsonParser();
+  const parsedResults = parser.parseJsonResults(response);
+  return parsedResults;
 }
 
 /**
