@@ -178,6 +178,49 @@ async function deleteTriples(store) {
   await deleteData(storeWithAllGraphs);
 }
 
+/**
+ * Instead of starting from incoming changesets, this function can be called on
+ * its own to attempt to scan the temporary inserts and deletes graphs for
+ * subjects that can be moved to their organisation graph. Do this, e.g., on
+ * rebooting the service.
+ *
+ * @public
+ * @async
+ * @function
+ * @returns {undefined} Nothing
+ */
+export async function scanAndProcess() {
+  //Deletes
+  const deletes = await getData(namedNode(env.TEMP_GRAPH_DELETES));
+  await deleteTriples(deletes);
+
+  //Inserts
+  const subjectsWithTypes = await getInsertSubjectsWithType();
+  dispatch(subjectsWithTypes);
+}
+
+/**
+ * @see scanAndProcess
+ * Same as the referenced function but only for inserts. Use this for
+ * scheduling after a succesful `processInserts` to see if some more data can
+ * be moved to their organisation graph now.
+ *
+ * Not all data can be moved to the organisation graph at once because the path
+ * to the organisation might not be complete, so it sticks around in the
+ * temporary graph. Every time a new delta has been processed succesfully, we
+ * should check if any of sticking data now has a completed link to the
+ * organisation and can be moved.
+ *
+ * @public
+ * @async
+ * @function
+ * @returns {undefined} Nothing
+ */
+export async function scanAndProcessInserts() {
+  const subjectsWithTypes = await getInsertSubjectsWithType();
+  dispatch(subjectsWithTypes);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Helpers
 ///////////////////////////////////////////////////////////////////////////////
@@ -456,6 +499,35 @@ function formatTerm(term) {
   if (term.datatype?.value === 'http://www.w3.org/2001/XMLSchema#string')
     return `${rst.termToString(term)}^^${rst.termToString(term.datatype)}`;
   else return rst.termToString(term);
+}
+
+/**
+ * Fetches the triples in the given graph from the triplestore.
+ *
+ * @async
+ * @function
+ * @param {NamedNode} graph - The graph from which to get the triples from.
+ * @returns {N3.Store} Store containing the triples in the graph.
+ */
+async function getData(graph) {
+  if (!graph)
+    throw new Error(
+      'Querying without graph is probably a mistake as it will cause an explosion of data and is therefore not allowed.'
+    );
+  const response = mas.querySudo(`
+    SELECT ?s ?p ?o WHERE {
+      GRAPH ${rst.termToString(graph)} {
+        ?s ?p ?o .
+      }
+    }
+  `);
+  const parser = new sjp.SparqlJsonParser();
+  const parsedResults = parser.parseJsonResults(response);
+  const store = new N3.Store();
+  parsedResults.forEach((triple) =>
+    store.addQuad(triple.s, triple.p, triple.o, graph)
+  );
+  return store;
 }
 
 /**
