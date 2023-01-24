@@ -85,8 +85,9 @@ let scanAndProcessTimer;
  *
  * @async
  * @function
- * @param {N3.Store} subjectsWithTypes - A store with only some subjects and
- * their type via `rdf:type`.
+ * @param {Array(Object(subject: NamedNode, type: NamedNode))}
+ * subjectsWithTypes - An array of JavaScript objects with the subject and type
+ * as RDF.JS NamedNode terms.
  * @returns {undefined} Nothing
  * @throws Will throw an exception on any kind of error.
  */
@@ -215,7 +216,7 @@ export async function scanAndProcess() {
 
   //Inserts
   const subjectsWithTypes = await getInsertSubjectsWithType();
-  dispatch(subjectsWithTypes);
+  await dispatch(subjectsWithTypes);
 }
 
 /**
@@ -237,7 +238,7 @@ export async function scanAndProcess() {
  */
 export async function scanAndProcessInserts() {
   const subjectsWithTypes = await getInsertSubjectsWithType();
-  dispatch(subjectsWithTypes);
+  await dispatch(subjectsWithTypes);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -250,7 +251,7 @@ export async function scanAndProcessInserts() {
  * @async
  * @function
  * @param {Iterable} subjects - A collection of subject.
- * @returns {Array(Object(subject: NamedNode, type: NamedNode))}  An array of
+ * @returns {Array(Object(subject: NamedNode, type: NamedNode))} An array of
  * JavaScript objects with the subject and type as RDF.JS NamedNode terms.
  */
 async function getTypesForSubjects(subjects) {
@@ -524,7 +525,11 @@ function formatTriple(quad) {
  * @returns {String}
  */
 function formatTerm(term) {
-  if (term.datatype?.value === 'http://www.w3.org/2001/XMLSchema#string')
+  if (
+    term.datatype?.value === 'http://www.w3.org/2001/XMLSchema#string' ||
+    term.datatype?.value ===
+      'http://www.w3.org/1999/02/22-rdf-syntax-ns#langString'
+  )
     return `${rst.termToString(term)}^^${rst.termToString(term.datatype)}`;
   else return rst.termToString(term);
 }
