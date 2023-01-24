@@ -107,7 +107,7 @@ async function dispatch(subjectsWithTypes) {
  * **one** graph that looks like an organisation graph, it is deleted from
  * there. They are also deleted from the temporary inserts and deletes graph.
  * If the triple appears in more than one organisation graph, it has to be left
- * alone an nothing is deleted.
+ * alone and nothing is deleted.
  *
  * Deletes triples from temporary inserts. (This is a bit of a guess, we assume
  * triples are unique accross the whole database. We have to do this because we
