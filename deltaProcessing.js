@@ -36,6 +36,7 @@ export async function processDeltaChangesets(changesets) {
  * graph. The organisation graph is found by querying configurable paths (see
  * the `config/pathsToAdministrativeUnit.js` file).
  *
+ * @see dispatch
  * @async
  * @function
  * @param {Iterable} inserts - An iterable with triples formatted in JSON
@@ -63,6 +64,23 @@ async function processInserts(inserts) {
   const subjects = store.getSubjects();
   const subjectsWithTypes = await getTypesForSubjects(subjects);
 
+  await dispatch(subjectsWithTypes);
+}
+
+/**
+ * @see processInserts
+ * This is the second half of that function. It starts from a store containing
+ * at least one subject and its type to find the organisation graph and move
+ * the data.
+ *
+ * @async
+ * @function
+ * @param {N3.Store} subjectsWithTypes - A store with only some subjects and
+ * their type via `rdf:type`.
+ * @returns {undefined} Nothing
+ * @throws Will throw an exception on any kind of error.
+ */
+async function dispatch(subjectsWithTypes) {
   for (const individual of subjectsWithTypes) {
     const { subject, type } = individual;
     const organisationUUIDs = await getOrganisationUUIDs(subject, type);
@@ -97,6 +115,7 @@ async function processInserts(inserts) {
  * delete triples from the temporary deletes, that graph should be empty if
  * there are no problematic triples.
  *
+ * @see deleteTriples
  * @async
  * @function
  * @param {Iterable} inserts - An iterable with triples formatted in JSON
@@ -119,6 +138,21 @@ async function processDeletes(deletes) {
   //TODO potentially throw error stating that there is nothing to process?
   if (store.size < 1) return;
 
+  await deleteTriples(store);
+}
+
+/*
+ * @see processDeletes
+ * Second half of that funtion. It starts with a store containing all the triples that need to be deleted.
+ *
+ * @async
+ * @function
+ * @param {N3.Store} store - Store containing the triples to be deleted. This
+ * could be the contents of the temporary deletes graph.
+ * @returns {undefined} Nothing
+ * @throws Will throw an exception on any kind of error.
+ */
+async function deleteTriples(store) {
   //Query for every triple all the graphs it exists in
   const storeWithAllGraphs = await getGraphsForTriples(store);
   const problematicTriples = [];
