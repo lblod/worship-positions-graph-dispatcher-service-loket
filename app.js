@@ -26,6 +26,21 @@ app.get('/', function (req, res) {
 });
 
 /**
+ * When the service starts, make it do a scan of the inserts and deletes to
+ * first clear out those graphs as much as possible.
+ */
+setTimeout(async () => {
+  try {
+    await lock.acquire();
+    await del.scanAndProcess();
+  } catch (err) {
+    await logError(err);
+  } finally {
+    lock.release();
+  }
+}, 0);
+
+/**
  * This is a lock to make sure requests are only processed one by one. This is
  * to make sure requests are not touching the data of other requests. Although
  * that is allowed (it wont break the data), we don't want to be wasteful with
@@ -73,6 +88,20 @@ app.post('/delta-deletes', async function (req, res, next) {
   }
 });
 
+app.post('/manual-dispatch', async function (req, res, next) {
+  // We can already send a 200 back. The delta-notifier does not care about the
+  // result, as long as the request is closed.
+  res.status(200).end();
+  try {
+    await lock.acquire();
+    await del.scanAndProcess();
+  } catch (err) {
+    next(err);
+  } finally {
+    lock.release();
+  }
+});
+
 ///////////////////////////////////////////////////////////////////////////////
 // Error handler
 ///////////////////////////////////////////////////////////////////////////////
@@ -81,6 +110,11 @@ app.post('/delta-deletes', async function (req, res, next) {
 // when removed, Express does not use this middleware anymore.
 /* eslint-disable no-unused-vars */
 app.use(async (err, req, res, next) => {
+  await logError(err);
+});
+/* eslint-enable no-unused-vars */
+
+async function logError(err) {
   //TODO remove next line in production
   console.error(err);
   if (env.LOGLEVEL === 'error') console.error(err);
@@ -88,8 +122,7 @@ app.use(async (err, req, res, next) => {
     const errorStore = errorToStore(err);
     await writeError(errorStore);
   }
-});
-/* eslint-enable no-unused-vars */
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // Helpers
