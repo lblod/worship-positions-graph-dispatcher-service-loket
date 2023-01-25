@@ -7,6 +7,7 @@ import * as mas from '@lblod/mu-auth-sudo';
 import * as rst from 'rdf-string-ttl';
 import * as env from './env';
 import * as del from './deltaProcessing';
+import { Lock } from 'async-await-mutex-lock';
 import * as N3 from 'n3';
 const { namedNode, literal } = N3.DataFactory;
 
@@ -24,16 +25,29 @@ app.get('/', function (req, res) {
   res.send('Hello from worship-positions-graph-dispatcher-service-loket');
 });
 
+/**
+ * This is a lock to make sure requests are only processed one by one. This is
+ * to make sure requests are not touching the data of other requests. Although
+ * that is allowed (it wont break the data), we don't want to be wasteful with
+ * queries.
+ *
+ * @global
+ */
+const lock = new Lock();
+
 app.post('/delta-inserts', async function (req, res, next) {
   // We can already send a 200 back. The delta-notifier does not care about the
   // result, as long as the request is closed.
   res.status(200).end();
   try {
+    await lock.acquire();
     const changesets = req.body;
     const result = await del.processDeltaChangesets(changesets);
     handleProcessingResult(result);
   } catch (err) {
     next(err);
+  } finally {
+    lock.release();
   }
 });
 
