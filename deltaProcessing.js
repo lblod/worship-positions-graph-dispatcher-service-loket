@@ -19,7 +19,7 @@ import pta from './config/pathsToAdministrativeUnit';
  * @param {Iterable} changesets - This is an iterable collection of changesets
  * from the delta-notifier, usually an Array with objects like `{ inserts:
  * [...], deletes: [...] }`
- * @returns {Object} An object with prorerties `inserts` and `deletes` that
+ * @returns {Object} An object with properties `inserts` and `deletes` that
  * contain the results from `processInserts` and `processDeletes` respectively.
  * @throws Will rethrow an exception if any error has occured (network, SPARQL,
  * timeout, ...)
@@ -53,7 +53,8 @@ export async function processDeltaChangesets(changesets) {
  * {...} }`. These are usually the contents of changesets from the
  * delta-notifier.
  * @returns {Object | Array(Object)} Either an object with properties `success`
- * (Boolean) and `reason` (String) or the  array of results from `dispatch`.
+ * (Boolean), `mode` (String) and `reason` (String) or the  array of results
+ * from `dispatch`.
  * @throws Will throw an exception on any kind of error.
  */
 async function processInserts(inserts) {
@@ -103,8 +104,10 @@ let scanAndProcessTimer;
  * subjectsWithTypes - An array of JavaScript objects with the subject and type
  * as RDF.JS NamedNode terms.
  * @returns {Array(Object)} An array of objects per processed subjects. Every
- * object contains properties `success` (Boolean), `subject` (NamedNode) and
- * `reason` (String), but might also contain some more helpful debugging data.
+ * object contains properties `success` (Boolean), `mode` (String), `subject`
+ * (NamedNode) and `reason` (String), but might also contain some more helpful
+ * debugging data such as the `organisationUUIDs` (Array) or
+ * `organisationGraph` (NamedNode).
  * @throws Will throw an exception on any kind of error.
  */
 async function dispatch(subjectsWithTypes) {
@@ -186,8 +189,8 @@ async function dispatch(subjectsWithTypes) {
  * {...} }`. These are usually the contents of changesets from the
  * delta-notifier.
  * @returns {Object | Array(Object)} Either an object with properties `success`
- * (Boolean) and `reason` (String) or the  array of results from
- * `deleteTriples`.
+ * (Boolean), `mode` (String) and `reason` (String) or the  array of results
+ * from `deleteTriples`.
  * @throws Will throw an exception on any kind of error.
  */
 async function processDeletes(deletes) {
@@ -221,8 +224,8 @@ async function processDeletes(deletes) {
  * could be the contents of the temporary deletes graph.
  * @returns {Array(Object)} An array of objects, only for failed deletes.
  * Failures will be rare, but successes will be plenty so we don't want all
- * those logs. These objects have properties `success` (Boolean), `reason`
-  * (String), `triple` (Quad), and `graph` (NamedNode).
+ * those logs. These objects have properties `success` (Boolean),  `mode`
+ * (String), `reason` (String), `triple` (Quad), and `graph` (NamedNode).
  * @throws Will throw an exception on any kind of error.
  */
 async function deleteTriples(store) {

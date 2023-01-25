@@ -181,9 +181,8 @@ async function writeError(errorStore) {
  * requests for that.
  *
  * @function
- * @param {Object} results - A JavaScript object with keys `success` (Boolean)
- * and `reason` (String). When not successful, the reason is printed according
- * to the loglevel.
+ * @param {Object} results - A JavaScript object with properties described in
+ * `del.processDeltaMessages`. Logs are printed according to the loglevel.
  * @returns {undefined} Nothing
  */
 function handleProcessingResult(results) {
