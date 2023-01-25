@@ -32,7 +32,8 @@ app.get('/', function (req, res) {
 setTimeout(async () => {
   try {
     await lock.acquire();
-    await del.scanAndProcess();
+    const results = await del.scanAndProcess();
+    handleProcessingResult(results);
   } catch (err) {
     await logError(err);
   } finally {
@@ -94,7 +95,8 @@ app.post('/manual-dispatch', async function (req, res, next) {
   res.status(200).end();
   try {
     await lock.acquire();
-    await del.scanAndProcess();
+    const results = await del.scanAndProcess();
+    handleProcessingResult(results);
   } catch (err) {
     next(err);
   } finally {
@@ -181,13 +183,27 @@ async function writeError(errorStore) {
  * requests for that.
  *
  * @function
- * @param {Object} result - A JavaScript object with keys `success` (Boolean)
+ * @param {Object} results - A JavaScript object with keys `success` (Boolean)
  * and `reason` (String). When not successful, the reason is printed according
  * to the loglevel.
  * @returns {undefined} Nothing
  */
-function handleProcessingResult(result) {
-  if (result.success) return;
-  if (env.LOGLEVEL == 'error' || env.LOGLEVEL == 'info')
-    console.log(result.reason);
+function handleProcessingResult(results) {
+  if (env.LOGLEVEL === 'info') {
+    const insertsResults = results.inserts;
+    const deletesResults = results.deletes;
+    for (const coll of [deletesResults, insertsResults]) {
+      for (const res of coll) {
+        if (res.subject) res.subject = res.subject.value;
+        if (res.type) res.type = res.type.value;
+        if (res.organisationGraph)
+          res.organisationGraph = res.organisationGraph.value;
+        if (res.organisationUUIDs)
+          res.organisationUUIDs = res.organisationUUIDs.join(',');
+        if (res.triple) res.triple = del.formatTriple(res.triple);
+        if (res.graphs) res.graphs = res.graphs.join(',');
+        console.log(res);
+      }
+    }
+  }
 }

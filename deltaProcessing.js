@@ -19,15 +19,24 @@ import pta from './config/pathsToAdministrativeUnit';
  * @param {Iterable} changesets - This is an iterable collection of changesets
  * from the delta-notifier, usually an Array with objects like `{ inserts:
  * [...], deletes: [...] }`
- * @returns {undefined} Nothing
- * @throws Will throw an exception if any error has occured (network, SPARQL,
+ * @returns {Object} An object with prorerties `inserts` and `deletes` that
+ * contain the results from `processInserts` and `processDeletes` respectively.
+ * @throws Will rethrow an exception if any error has occured (network, SPARQL,
  * timeout, ...)
  */
 export async function processDeltaChangesets(changesets) {
+  let deletesResults = [];
+  let insertsResults = [];
   for (const changeset of changesets) {
-    await processDeletes(changeset.deletes);
-    await processInserts(changeset.inserts);
+    const deleteRes = await processDeletes(changeset.deletes);
+    const insertRes = await processInserts(changeset.inserts);
+    deletesResults = deletesResults.concat(deleteRes);
+    insertsResults = insertsResults.concat(insertRes);
   }
+  return {
+    inserts: insertsResults,
+    deletes: deletesResults,
+  };
 }
 
 /**
@@ -43,7 +52,8 @@ export async function processDeltaChangesets(changesets) {
  * syntax, e.g. `{ subject: {...}, predicate: {...}, object: {...}, graph:
  * {...} }`. These are usually the contents of changesets from the
  * delta-notifier.
- * @returns {undefined} Nothing
+ * @returns {Object | Array(Object)} Either an object with properties `success`
+ * (Boolean) and `reason` (String) or the  array of results from `dispatch`.
  * @throws Will throw an exception on any kind of error.
  */
 async function processInserts(inserts) {
@@ -56,15 +66,19 @@ async function processInserts(inserts) {
   });
 
   //Nothing in the store, nothing to do.
-  //TODO potentially throw error stating that there is nothing to process?
-  if (store.size < 1) return;
+  if (store.size < 1)
+    return {
+      success: false,
+      type: 'Insert',
+      reason: 'Nothing in the inserts to process.',
+    };
 
   //Get all subjects from the store and their type from the triplestore (could
   //be in any graph)
   const subjects = store.getSubjects();
   const subjectsWithTypes = await getTypesForSubjects(subjects);
 
-  await dispatch(subjectsWithTypes);
+  return dispatch(subjectsWithTypes);
 }
 
 /**
@@ -88,17 +102,27 @@ let scanAndProcessTimer;
  * @param {Array(Object(subject: NamedNode, type: NamedNode))}
  * subjectsWithTypes - An array of JavaScript objects with the subject and type
  * as RDF.JS NamedNode terms.
- * @returns {undefined} Nothing
+ * @returns {Array(Object)} An array of objects per processed subjects. Every
+ * object contains properties `success` (Boolean), `subject` (NamedNode) and
+ * `reason` (String), but might also contain some more helpful debugging data.
  * @throws Will throw an exception on any kind of error.
  */
 async function dispatch(subjectsWithTypes) {
+  const results = [];
   let needsToSchedule = false;
   for (const individual of subjectsWithTypes) {
     const { subject, type } = individual;
     const organisationUUIDs = await getOrganisationUUIDs(subject, type);
     if (organisationUUIDs.length > 1) {
-      //TODO? throw error or something to indicate that there might be a
-      //problem?
+      //Append a result object to indicate a failure to move the data
+      results.push({
+        success: false,
+        mode: 'Insert',
+        subject,
+        type,
+        reason: 'Too many possible organisations',
+        organisationUUIDs,
+      });
     } else if (organisationUUIDs.length === 1) {
       const organisationGraph = namedNode(
         `${env.ORGANISATION_GRAPH_PREFIX}${organisationUUIDs[0]}`
@@ -109,9 +133,27 @@ async function dispatch(subjectsWithTypes) {
       await moveSubjectBetweenGraphs(subject, insertGraph, organisationGraph);
       //Schedule a new iteration of insert processing
       needsToSchedule = true;
+      //Append a result object to indicate success
+      results.push({
+        success: true,
+        mode: 'Insert',
+        subject,
+        type,
+        reason: 'Data successfully moved for this subject.',
+        organisationGraph,
+      });
+    } else {
+      //Append result object to indicate nothing could be done, but this is
+      //actually a rather normal occurence
+      results.push({
+        success: false,
+        mode: 'Insert',
+        subject,
+        type,
+        reason:
+          'No organisation found. This could be normal. This subject is tried again later.',
+      });
     }
-    //else: do nothing (TODO potential error message, to indicate nothing could
-    //be done, but this is actually a rather normal occurence)
   }
   if (needsToSchedule) {
     if (scanAndProcessTimer) {
@@ -120,6 +162,7 @@ async function dispatch(subjectsWithTypes) {
     }
     scanAndProcessTimer = setTimeout(scanAndProcessInserts, 5000);
   }
+  return results;
 }
 
 /**
@@ -142,7 +185,9 @@ async function dispatch(subjectsWithTypes) {
  * syntax, e.g. `{ subject: {...}, predicate: {...}, object: {...}, graph:
  * {...} }`. These are usually the contents of changesets from the
  * delta-notifier.
- * @returns {undefined} Nothing
+ * @returns {Object | Array(Object)} Either an object with properties `success`
+ * (Boolean) and `reason` (String) or the  array of results from
+ * `deleteTriples`.
  * @throws Will throw an exception on any kind of error.
  */
 async function processDeletes(deletes) {
@@ -155,24 +200,33 @@ async function processDeletes(deletes) {
   });
 
   //Nothing in the store, nothing to do.
-  //TODO potentially throw error stating that there is nothing to process?
-  if (store.size < 1) return;
+  if (store.size < 1)
+    return {
+      success: false,
+      mode: 'Delete',
+      reason: 'Nothing in the deletes to process.',
+    };
 
-  await deleteTriples(store);
+  return deleteTriples(store);
 }
 
 /*
  * @see processDeletes
- * Second half of that funtion. It starts with a store containing all the triples that need to be deleted.
+ * Second half of that funtion. It starts with a store containing all the
+ * triples that need to be deleted.
  *
  * @async
  * @function
  * @param {N3.Store} store - Store containing the triples to be deleted. This
  * could be the contents of the temporary deletes graph.
- * @returns {undefined} Nothing
+ * @returns {Array(Object)} An array of objects, only for failed deletes.
+ * Failures will be rare, but successes will be plenty so we don't want all
+ * those logs. These objects have properties `success` (Boolean), `reason`
+  * (String), `triple` (Quad), and `graph` (NamedNode).
  * @throws Will throw an exception on any kind of error.
  */
 async function deleteTriples(store) {
+  const results = [];
   //Query for every triple all the graphs it exists in
   const storeWithAllGraphs = await getGraphsForTriples(store);
   const problematicTriples = [];
@@ -186,6 +240,13 @@ async function deleteTriples(store) {
       //Triple found in more than 1 organisation graph. Mark this triple as
       //problematic so that it won't be removed
       problematicTriples.push(triple);
+      results.push({
+        success: false,
+        mode: 'Delete',
+        reason: 'More than one organisation graph found. Not removing triple.',
+        triple,
+        graphs,
+      });
     }
     //else: This is good: the triple only exists in one graph and because of
     //the similar URI, it must be the correct organisation graph. This triple
@@ -194,8 +255,8 @@ async function deleteTriples(store) {
   problematicTriples.forEach((t) => {
     storeWithAllGraphs.removeQuad(t.subject, t.predicate, t.object);
   });
-
   await deleteData(storeWithAllGraphs);
+  return results;
 }
 
 /**
@@ -207,16 +268,22 @@ async function deleteTriples(store) {
  * @public
  * @async
  * @function
- * @returns {undefined} Nothing
+ * @returns {Object} An object with properties `inserts` and `deletes` with the
+ * contents of the results from `dispatch` and `deleteTriples` respectively.
  */
 export async function scanAndProcess() {
   //Deletes
   const deletes = await getData(namedNode(env.TEMP_GRAPH_DELETES));
-  await deleteTriples(deletes);
+  const deletesResults = await deleteTriples(deletes);
 
   //Inserts
   const subjectsWithTypes = await getInsertSubjectsWithType();
-  await dispatch(subjectsWithTypes);
+  const insertsResults = await dispatch(subjectsWithTypes);
+
+  return {
+    inserts: insertsResults,
+    deletes: deletesResults,
+  };
 }
 
 /**
@@ -234,11 +301,11 @@ export async function scanAndProcess() {
  * @public
  * @async
  * @function
- * @returns {undefined} Nothing
+ * @returns {Object | Array(Object)} Returns the result of `dispatch`.
  */
 export async function scanAndProcessInserts() {
   const subjectsWithTypes = await getInsertSubjectsWithType();
-  await dispatch(subjectsWithTypes);
+  return dispatch(subjectsWithTypes);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
