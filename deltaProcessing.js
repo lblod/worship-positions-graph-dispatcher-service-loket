@@ -547,7 +547,7 @@ async function getData(graph) {
     throw new Error(
       'Querying without graph is probably a mistake as it will cause an explosion of data and is therefore not allowed.'
     );
-  const response = mas.querySudo(`
+  const response = await mas.querySudo(`
     SELECT ?s ?p ?o WHERE {
       GRAPH ${rst.termToString(graph)} {
         ?s ?p ?o .
