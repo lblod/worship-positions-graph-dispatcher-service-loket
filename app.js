@@ -24,7 +24,7 @@ app.get('/', function (req, res) {
   res.send('Hello from worship-positions-graph-dispatcher-service-loket');
 });
 
-app.post('/delta', async function (req, res, next) {
+app.post('/delta-inserts', async function (req, res, next) {
   // We can already send a 200 back. The delta-notifier does not care about the
   // result, as long as the request is closed.
   res.status(200).end();
@@ -34,6 +34,28 @@ app.post('/delta', async function (req, res, next) {
     handleProcessingResult(result);
   } catch (err) {
     next(err);
+  }
+});
+
+app.post('/delta-deletes', async function (req, res, next) {
+  // We can already send a 200 back. The delta-notifier does not care about the
+  // result, as long as the request is closed.
+  res.status(200).end();
+  try {
+    await lock.acquire();
+    const changesets = req.body;
+    //Deletes are actually inserts in the temporary deletes graph. Move them
+    //over to deletes and remove the inserts to trick the delta processor.
+    for (const changeset of changesets) {
+      changeset.deletes = changeset.deletes.concat(changeset.inserts);
+      changeset.inserts = [];
+    }
+    const result = await del.processDeltaChangesets(changesets);
+    handleProcessingResult(result);
+  } catch (err) {
+    next(err);
+  } finally {
+    lock.release();
   }
 });
 
