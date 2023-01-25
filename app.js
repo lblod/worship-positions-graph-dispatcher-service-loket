@@ -117,9 +117,7 @@ app.use(async (err, req, res, next) => {
 /* eslint-enable no-unused-vars */
 
 async function logError(err) {
-  //TODO remove next line in production
-  console.error(err);
-  if (env.LOGLEVEL === 'error') console.error(err);
+  if (env.LOGLEVEL === 'error' || env.LOGLEVEL === 'info') console.error(err);
   if (env.WRITE_ERRORS === true) {
     const errorStore = errorToStore(err);
     await writeError(errorStore);
@@ -190,10 +188,10 @@ async function writeError(errorStore) {
  */
 function handleProcessingResult(results) {
   if (env.LOGLEVEL === 'info') {
-    const insertsResults = results.inserts;
-    const deletesResults = results.deletes;
-    for (const coll of [deletesResults, insertsResults]) {
-      for (const res of coll) {
+    const allResults = [...results.deletes, ...results.inserts];
+    if (allResults.length > 0) {
+      console.log('Printing the results of the last dispatching:');
+      for (const res of allResults) {
         if (res.subject) res.subject = res.subject.value;
         if (res.type) res.type = res.type.value;
         if (res.organisationGraph)
@@ -204,6 +202,9 @@ function handleProcessingResult(results) {
         if (res.graphs) res.graphs = res.graphs.join(',');
         console.log(res);
       }
+      console.log('End of results');
+    } else {
+      console.log('No data had to be processed');
     }
   }
 }
