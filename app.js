@@ -28,18 +28,31 @@ app.get('/', function (req, res) {
 /**
  * When the service starts, make it do a scan of the inserts and deletes to
  * first clear out those graphs as much as possible.
+ *
+ * @public
+ * @async
+ * @function
+ * @param {Boolean} processDeletes - Whether to also look for deletes or not.
+ * @returns {undefined} Nothing
  */
-setTimeout(async () => {
+export async function encapsulatedScanAndProcess(processDeletes) {
   try {
     await lock.acquire();
-    const results = await del.scanAndProcess();
+    const results = await del.scanAndProcess(processDeletes);
     handleProcessingResult(results);
   } catch (err) {
     await logError(err);
   } finally {
     lock.release();
   }
-}, 0);
+}
+
+/**
+ * Use a `setTimeout` to schedule the scanning of the temporary graphs. This
+ * happens once on startup of the service. The reason for this being on a timer
+ * is that it can be delayed if needed.
+ */
+setTimeout(encapsulatedScanAndProcess, 0);
 
 /**
  * This is a lock to make sure requests are only processed one by one. This is
