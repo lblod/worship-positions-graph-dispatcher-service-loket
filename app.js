@@ -156,6 +156,11 @@ function errorToStore(errorObject) {
   const error = b.error(errorUuid);
   store.addQuad(error, ns.rdf`type`, ns.oslc`Error`);
   store.addQuad(error, ns.mu`uuid`, literal(errorUuid));
+  store.addQuad(
+    error,
+    ns.dct`creator`,
+    literal('Worship positions graph dispatcher service loket')
+  );
   store.addQuad(error, ns.oslc`message`, literal(errorObject.message));
   return store;
 }
