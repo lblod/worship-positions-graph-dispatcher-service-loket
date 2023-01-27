@@ -1,12 +1,12 @@
 import bodyParser from 'body-parser';
 import { app } from 'mu';
-import { BASES as b } from './env';
 import { v4 as uuid } from 'uuid';
+import { BASES as b } from './env';
 import { NAMESPACES as ns } from './env';
+import * as env from './env';
 import * as mas from '@lblod/mu-auth-sudo';
 import * as rst from 'rdf-string-ttl';
-import * as env from './env';
-import * as del from './deltaProcessing';
+import * as del from './lib/deltaProcessing';
 import { Lock } from 'async-await-mutex-lock';
 import * as N3 from 'n3';
 const { namedNode, literal } = N3.DataFactory;
