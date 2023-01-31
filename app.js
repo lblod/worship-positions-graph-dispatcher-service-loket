@@ -71,7 +71,7 @@ app.post('/delta-inserts', async function (req, res, next) {
   try {
     await lock.acquire();
     const changesets = req.body;
-    const result = await del.processDeltaChangesetsInserts(changesets);
+    const result = await del.processDeltaChangesets(changesets);
     handleProcessingResult(result);
   } catch (err) {
     next(err);
@@ -93,7 +93,7 @@ app.post('/delta-deletes', async function (req, res, next) {
       changeset.deletes = changeset.deletes.concat(changeset.inserts);
       changeset.inserts = [];
     }
-    const result = await del.processDeltaChangesetsDeletes(changesets);
+    const result = await del.processDeltaChangesets(changesets);
     handleProcessingResult(result);
   } catch (err) {
     next(err);
