@@ -250,8 +250,3 @@ a look in the `env.js` file for a list of the available prefixes.
 ## TODO
 
 * Only allow deletes from graphs touchable by vendors.
-* Optimisations:
-  - Changesets can only include inserts or deletes (never both, due to separate
-    API paths)? This would mean we could flatten those lists and reduce the
-    amount of unique subjects between changesets → less queries and less
-    redundant work.
