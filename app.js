@@ -2,7 +2,7 @@ import bodyParser from 'body-parser';
 import { app } from 'mu';
 import { v4 as uuid } from 'uuid';
 import { BASES as b } from './env';
-import { NAMESPACES as ns } from './env';
+import { NAMESPACES as ns, TEMP_GRAPH_SCANNING_INTERVAL } from './env';
 import * as env from './env';
 import * as mas from '@lblod/mu-auth-sudo';
 import * as rst from 'rdf-string-ttl';
@@ -52,7 +52,7 @@ export async function encapsulatedScanAndProcess(processDeletes) {
  * happens once on startup of the service. The reason for this being on a timer
  * is that it can be delayed if needed.
  */
-setTimeout(encapsulatedScanAndProcess, 0);
+setTimeout(encapsulatedScanAndProcess, TEMP_GRAPH_SCANNING_INTERVAL);
 
 /**
  * This is a lock to make sure requests are only processed one by one. This is
