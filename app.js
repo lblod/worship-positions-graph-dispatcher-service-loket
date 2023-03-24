@@ -213,6 +213,8 @@ function handleProcessingResult(results) {
         if (res.type) res.type = res.type.value;
         if (res.organisationGraph)
           res.organisationGraph = res.organisationGraph.value;
+        if (res.organisationGraphs)
+          res.organisationGraphs = res.organisationGraphs.map((g) => g.value);
         if (res.organisationUUIDs)
           res.organisationUUIDs = res.organisationUUIDs.join(',');
         if (res.triple) res.triple = del.formatTriple(res.triple);
