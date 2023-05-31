@@ -20,6 +20,7 @@ export default [
       ?orgaan
         besluit:bestuurt ?worshipAdministrativeUnit .
     `,
+    allowedInMultipleOrgs: false,
   },
   {
     type: ns.ere`RolBedienaar`,
@@ -29,6 +30,7 @@ export default [
       ?worshipAdministrativeUnit
         ere:wordtBediendDoor ?position .
     `,
+    allowedInMultipleOrgs: false,
   },
   {
     // Person linked to a EredienstMandataris
@@ -43,6 +45,7 @@ export default [
       ?orgaan
         besluit:bestuurt ?worshipAdministrativeUnit .
     `,
+    allowedInMultipleOrgs: true,
   },
   {
     // Person linked to a RolBedienaar
@@ -54,6 +57,7 @@ export default [
       ?worshipAdministrativeUnit
         ere:wordtBediendDoor ?position .
     `,
+    allowedInMultipleOrgs: true,
   },
   {
     // Birthdate of person linked to a EredienstMandataris
@@ -70,6 +74,7 @@ export default [
       ?orgaan
         besluit:bestuurt ?worshipAdministrativeUnit .
     `,
+    allowedInMultipleOrgs: true,
   },
   {
     // Birthdate of person linked to a RolBedienaar
@@ -83,6 +88,7 @@ export default [
       ?worshipAdministrativeUnit
         ere:wordtBediendDoor ?position .
     `,
+    allowedInMultipleOrgs: true,
   },
   {
     // Id of person linked to a EredienstMandataris
@@ -99,6 +105,7 @@ export default [
       ?orgaan
         besluit:bestuurt ?worshipAdministrativeUnit .
     `,
+    allowedInMultipleOrgs: true,
   },
   {
     // Id of person linked to a RolBedienaar
@@ -112,6 +119,7 @@ export default [
       ?worshipAdministrativeUnit
         ere:wordtBediendDoor ?position .
     `,
+    allowedInMultipleOrgs: true,
   },
   {
     // Contact point linked to a EredienstMandataris
@@ -126,6 +134,7 @@ export default [
       ?orgaan
         besluit:bestuurt ?worshipAdministrativeUnit .
     `,
+    allowedInMultipleOrgs: true,
   },
   {
     // Contact point linked to a RolBedienaar
@@ -137,6 +146,7 @@ export default [
       ?worshipAdministrativeUnit
         ere:wordtBediendDoor ?position .
     `,
+    allowedInMultipleOrgs: true,
   },
   {
     // Address linked to a EredienstMandataris
@@ -153,6 +163,7 @@ export default [
       ?orgaan
         besluit:bestuurt ?worshipAdministrativeUnit .
     `,
+    allowedInMultipleOrgs: true,
   },
   {
     // Address linked to a RolBedienaar
@@ -166,5 +177,6 @@ export default [
       ?worshipAdministrativeUnit
         ere:wordtBediendDoor ?position .
     `,
+    allowedInMultipleOrgs: true,
   },
 ];
