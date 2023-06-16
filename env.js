@@ -15,6 +15,8 @@ export const ORGANISATION_GRAPH_PREFIX = envvar
   .default('http://mu.semte.ch/graphs/organizations/')
   .asUrlString();
 
+export const BATCH_SIZE = envvar.get('BATCH_SIZE').default('100').asInt();
+
 export const LOGLEVEL = envvar
   .get('LOGLEVEL')
   .default('silent')
