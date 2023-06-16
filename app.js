@@ -7,6 +7,7 @@ import * as env from './env';
 import * as mas from '@lblod/mu-auth-sudo';
 import * as rst from 'rdf-string-ttl';
 import * as del from './lib/deltaProcessing';
+import * as sts from './lib/storeToTriplestore';
 import { Lock } from 'async-await-mutex-lock';
 import * as N3 from 'n3';
 const { namedNode, literal } = N3.DataFactory;
@@ -217,7 +218,7 @@ function handleProcessingResult(results) {
           res.organisationGraphs = res.organisationGraphs.map((g) => g.value);
         if (res.organisationUUIDs)
           res.organisationUUIDs = res.organisationUUIDs.join(',');
-        if (res.triple) res.triple = del.formatTriple(res.triple);
+        if (res.triple) res.triple = sts.formatTriple(res.triple);
         if (res.graphs) res.graphs = res.graphs.join(',');
         console.log(res);
       }
