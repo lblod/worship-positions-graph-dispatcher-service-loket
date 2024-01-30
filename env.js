@@ -9,6 +9,7 @@ export const TEMP_GRAPH_PREFIX = envvar
 
 export const TEMP_GRAPH_INSERTS = `${TEMP_GRAPH_PREFIX}-inserts`;
 export const TEMP_GRAPH_DELETES = `${TEMP_GRAPH_PREFIX}-deletes`;
+export const TEMP_GRAPH_DISCARDS = `${TEMP_GRAPH_PREFIX}-discards`;
 
 export const ORGANISATION_GRAPH_PREFIX = envvar
   .get('ORGANISATION_GRAPH_PREFIX')
