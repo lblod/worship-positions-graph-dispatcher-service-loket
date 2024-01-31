@@ -210,16 +210,16 @@ function handleProcessingResult(results) {
     if (allResults.length > 0) {
       console.log('Printing the results of the last dispatching:');
       for (const res of allResults) {
-        if (res.subject) res.subject = res.subject.value;
-        if (res.type) res.type = res.type.value;
-        if (res.organisationGraph)
-          res.organisationGraph = res.organisationGraph.value;
-        if (res.organisationGraphs)
-          res.organisationGraphs = res.organisationGraphs.map((g) => g.value);
-        if (res.organisationUUIDs)
-          res.organisationUUIDs = res.organisationUUIDs.join(',');
+        res.subject = res.subject?.value;
+        res.type = res.type?.value;
+        res.organisationGraph = res.organisationGraph?.value;
+        res.organisationGraphs = (res.organisationGraphs || []).map(
+          (g) => g.value
+        );
+        res.organisationUUIDs = (res.organisationUUIDs || []).join(',');
+        res.vendor = res.vendor?.value;
         if (res.triple) res.triple = sts.formatTriple(res.triple);
-        if (res.graphs) res.graphs = res.graphs.join(',');
+        res.graphs = (res.graphs || []).join(',');
         console.log(res);
       }
       console.log('End of results');
