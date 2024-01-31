@@ -24,6 +24,7 @@
     "prettier": "^2.8.3"
   },
   "dependencies": {
+    "@isaacs/ttlcache": "^1.4.1",
     "@lblod/mu-auth-sudo": "^0.6.0",
     "async-await-mutex-lock": "^1.0.10",
     "env-var": "^7.3.0",
