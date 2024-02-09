@@ -9,6 +9,7 @@ export const TEMP_GRAPH_PREFIX = envvar
 
 export const TEMP_GRAPH_INSERTS = `${TEMP_GRAPH_PREFIX}-inserts`;
 export const TEMP_GRAPH_DELETES = `${TEMP_GRAPH_PREFIX}-deletes`;
+export const TEMP_GRAPH_DISCARDS = `${TEMP_GRAPH_PREFIX}-discards`;
 
 export const ORGANISATION_GRAPH_PREFIX = envvar
   .get('ORGANISATION_GRAPH_PREFIX')
@@ -41,8 +42,10 @@ const PREFIXES = {
   rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
   xsd: 'http://www.w3.org/2001/XMLSchema#',
   mu: 'http://mu.semte.ch/vocabularies/core/',
+  muAccount: 'http://mu.semte.ch/vocabularies/account/',
   foaf: 'http://xmlns.com/foaf/0.1/',
   pav: 'http://purl.org/pav/',
+  prov: 'http://www.w3.org/ns/prov#',
   oslc: 'http://open-services.net/ns/core#',
   dct: 'http://purl.org/dc/terms/',
   ere: 'http://data.lblod.info/vocabularies/erediensten/',
