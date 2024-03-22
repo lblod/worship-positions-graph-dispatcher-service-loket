@@ -1,6 +1,6 @@
 {
   "name": "worship-positions-graph-dispatcher-service-loket",
-  "version": "1.2.0",
+  "version": "1.4.1",
   "description": "Microservice that listens to the delta-notifier and dispatches positions (and related information) to the correct organisation graphs for Loket.",
   "main": "app.js",
   "scripts": {
@@ -19,9 +19,9 @@
   "license": "MIT",
   "devDependencies": {
     "eslint": "^8.32.0",
-    "eslint-config-prettier": "^8.5.0",
-    "eslint-plugin-prettier": "^4.2.1",
-    "prettier": "^2.8.3"
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "prettier": "^3.0.0"
   },
   "dependencies": {
     "@isaacs/ttlcache": "^1.4.1",
