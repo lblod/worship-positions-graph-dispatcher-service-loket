@@ -19,7 +19,7 @@ app.use(
     },
     limit: '50mb',
     extended: true,
-  })
+  }),
 );
 
 app.get('/', function (req, res) {
@@ -160,7 +160,7 @@ function errorToStore(errorObject) {
   store.addQuad(
     error,
     ns.dct`creator`,
-    literal('Worship positions graph dispatcher service loket')
+    literal('Worship positions graph dispatcher service loket'),
   );
   store.addQuad(error, ns.oslc`message`, literal(errorObject.message));
   return store;
@@ -214,7 +214,7 @@ function handleProcessingResult(results) {
         res.type = res.type?.value;
         res.organisationGraph = res.organisationGraph?.value;
         res.organisationGraphs = (res.organisationGraphs || []).map(
-          (g) => g.value
+          (g) => g.value,
         );
         res.organisationUUIDs = (res.organisationUUIDs || []).join(',');
         res.vendor = res.vendor?.value;
