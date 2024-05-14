@@ -36,6 +36,7 @@ module.exports = [
       '/test/setup.js',
     ],
   },
+  //Disabled, no ESLint 9 support yet (on 2024-05-14):
   //qunitPlugin,
   eslintConfigPrettier,
   eslintPluginPrettierRecommended,
