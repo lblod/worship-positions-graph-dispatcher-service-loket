@@ -1,5 +1,6 @@
 const js = require('@eslint/js');
 const qunitPlugin = require('eslint-plugin-qunit/configs/recommended');
+const globals = require('globals');
 const eslintConfigPrettier = require('eslint-config-prettier');
 const stylisticJs = require('@stylistic/eslint-plugin-js');
 
@@ -11,6 +12,10 @@ module.exports = [
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
+      globals: {
+        ...globals.node,
+        ...globals.qunit,
+      },
     },
     plugins: {
       '@stylistic/js': stylisticJs,
@@ -33,7 +38,6 @@ module.exports = [
       '.*/',
       '.eslintcache',
       'eslint.config.js',
-      '/test/setup.js',
     ],
   },
   //Disabled, no ESLint 9 support yet (on 2024-05-14):
