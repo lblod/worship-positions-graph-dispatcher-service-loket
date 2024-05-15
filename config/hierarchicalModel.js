@@ -6,7 +6,7 @@ export default [
     children: [
       {
         path: ns.mandaat`isBestuurlijkeAliasVan`,
-        type: ns.person`Persoon`,
+        type: ns.person`Person`,
         children: [
           {
             path: ns.persoon`heeftGeboorte`,
