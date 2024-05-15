@@ -1,5 +1,5 @@
 const js = require('@eslint/js');
-const qunitPlugin = require('eslint-plugin-qunit/configs/recommended');
+//const qunitPlugin = require('eslint-plugin-qunit/configs/recommended');
 const globals = require('globals');
 const eslintConfigPrettier = require('eslint-config-prettier');
 const stylisticJs = require('@stylistic/eslint-plugin-js');
@@ -21,6 +21,7 @@ module.exports = [
       '@stylistic/js': stylisticJs,
     },
     rules: {
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
       indent: ['error', 2, { SwitchCase: 1 }],
       'linebreak-style': ['error', 'unix'],
       '@stylistic/js/quotes': ['error', 'single'],
@@ -38,6 +39,7 @@ module.exports = [
       '.*/',
       '.eslintcache',
       'eslint.config.js',
+      'prettier.config.js',
     ],
   },
   //Disabled, no ESLint 9 support yet (on 2024-05-14):
