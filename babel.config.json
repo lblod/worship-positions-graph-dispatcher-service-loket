@@ -1,0 +1,19 @@
+{
+  "presets": [
+    ["@babel/preset-env",
+      {
+        "targets": {
+          "node": 18
+        }
+      }
+    ],
+    ["@babel/preset-typescript"]
+  ],
+  "plugins": [
+    ["@babel/plugin-proposal-decorators", { "version": "2023-05" }]
+  ],
+  "ignore": [
+    "./node_modules",
+    "/usr/src/processing/build/node_modules"
+  ]
+}
